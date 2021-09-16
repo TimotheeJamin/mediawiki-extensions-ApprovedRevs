@@ -39,10 +39,13 @@ class ARApproveAction extends Action {
 		ApprovedRevs::setApprovedRevID( $title, $revisionID, $user );
 
 		$out = $this->getOutput();
-		$out->addHTML( "\t\t" . Xml::element(
+		$out->addHTML( "\t\t" . Xml::tags( // [Xml::element does not allow nesting another Xml::element -- TJ]
 			'div',
 			[ 'class' => 'successbox' ],
 			wfMessage( 'approvedrevs-approvesuccess' )->text()
+			. ' ' . Xml::element( 'a', [ 'href' => $title->getLocalUrl() ], // [Add link to page's main URL -- TJ]
+			wfMessage( 'approvedrevs-viewdefaultpage' )->text()
+			)
 		) . "\n" );
 		$out->addHTML( "\t\t" . Xml::element(
 			'p',
