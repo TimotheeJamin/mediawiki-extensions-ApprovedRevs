@@ -750,6 +750,23 @@ class ApprovedRevsHooks {
 		wfMessage( 'approvedrevs-revision-nav' )->rawParams(
 			$prevdiff, $prevlink, $approvedlink, $approveddiff, $lnk, $curdiff, $nextlink, $nextdiff
 		)->escaped() . "</div></div>";
+
+		// [Add "Approve this version" link below warning box. 
+		// Moved from function setArticleHeader as revision ID 
+		// was wrong when oldid and direction are defined -- TJ]
+		if ( ApprovedRevs::userCanApprove( $user, $title ) && ApprovedRevs::pageIsApprovable( $title ) && !$approved ) {
+			$subtitleHTML .= Xml::tags( 'div', [ 'class' => 'approved-revs-approverev' ],
+				Xml::element( 'a',
+				[ 'href' => $title->getLocalUrl(
+					[
+						'action' => 'approve',
+						'oldid' => $revisionID
+					]
+				) ],
+				wfMessage( 'approvedrevs-approvethisrev' )->text()
+			) );
+		}
+
 		$outputPage->addSubtitle( $subtitleHTML );
 	}
 
@@ -763,6 +780,24 @@ class ApprovedRevsHooks {
 	public static function setSubtitle( &$article, &$revisionID ) {
 		$title = $article->getTitle();
 		if ( !ApprovedRevs::hasApprovedRevision( $title ) ) {
+			$context = $article->getContext();
+			$user = $context->getUser();
+			// [Add "Approve this version" link when page has no approved version-- TJ]
+			if ( ApprovedRevs::userCanApprove( $user, $title ) && ApprovedRevs::pageIsApprovable( $title ) ) {
+				$request = $context->getRequest();
+				$out = $context->getOutput();
+				$subtitleHTML = Xml::tags( 'div', [ 'class' => 'approved-revs-approverev' ],
+					Xml::element( 'a',
+					[ 'href' => $title->getLocalUrl(
+						[
+							'action' => 'approve',
+							'oldid' => $revisionID
+						]
+					) ],
+					wfMessage( 'approvedrevs-approvethisrev' )->text()
+				) );
+				$out->addSubtitle( $subtitleHTML );
+			}
 			return true;
 		}
 
@@ -1265,6 +1300,11 @@ class ApprovedRevsHooks {
 	 * permission, and (d) either the page has no approved revision, or
 	 * the user is looking at a revision that's not the latest - the
 	 * displayed message depends on which of those cases it is.
+	 * [WARNING: $request->getInt( 'oldid' ) does not provide the current 
+	 * revision ID when direction=prev/next is present in URL. 
+	 * In this case, the wrong revision was approved when using "Approve 
+	 * this revision" link. The "oldid" case is thus taken care of in 
+	 * other functions. -- TJ]
 	 * @todo - this should probably get split up into two methods.
 	 *
 	 * @since 0.5.6
@@ -1323,7 +1363,12 @@ class ApprovedRevsHooks {
 		// there's no approved revision (we would have exited out if
 		// there were), so show a message explaining why the page is
 		// blank, with a link to the latest revision.
-		if ( $request->getCheck( 'oldid' ) ) {
+		// [Condition changed to display the "Approve this revision" 
+		// link only if not browsing revisions, i.e. when viewing
+		// default page with no approved revision. When oldid is
+		// in URL, setOldSubtitle and setSubtitle functions will now 
+		// do the job. -- TJ]
+		if ( !$request->getCheck( 'oldid' ) ) {
 			if ( ApprovedRevs::userCanApprove( $user, $title ) ) {
 				// @TODO - why is this message being shown
 				// at all? Aren't the "approve this revision"
@@ -1334,7 +1379,7 @@ class ApprovedRevsHooks {
 					[ 'href' => $title->getLocalUrl(
 						[
 							'action' => 'approve',
-							'oldid' => $request->getInt( 'oldid' )
+							'oldid' => $article->getRevIdFetched()
 						]
 					) ],
 					wfMessage( 'approvedrevs-approvethisrev' )->text()
