@@ -639,7 +639,7 @@ class ApprovedRevsHooks {
 				->rawParams( Linker::revComment( $rev, true, true ) )
 				->parse() .
 			"</div>";
-		$outputPage->addSubtitle( $revisionInfo );
+		// $outputPage->addSubtitle( $revisionInfo ); // [$revisionInfo moved to the end of the function (as in Article::setOldSubtitle()) to include it in the warning box -- TJ]
 
 		// Created for Approved Revs
 		$latestLinkParams = [];
@@ -720,7 +720,9 @@ class ApprovedRevsHooks {
 				$title,
 				wfMessage( 'approvedrevs-approvedrevision' )->escaped(),
 				[],
-				$extraParams
+				[
+					'oldid' => $approvedID // [Avoid link to default URL -- TJ]
+				] + $extraParams
 			);
 		$approveddiff = $approved
 			? wfMessage( 'diff' )->escaped()
@@ -740,10 +742,15 @@ class ApprovedRevsHooks {
 		}
 
 		// Modified for Approved Revs
-		$outputPage->addSubtitle( "<div id=\"mw-revision-nav\">" . $cdel .
-			wfMessage( 'approvedrevs-revision-nav' )->rawParams(
-				$prevdiff, $prevlink, $approvedlink, $approveddiff, $lnk, $curdiff, $nextlink, $nextdiff
-			)->escaped() . "</div>" );
+		if ( !$approved ) {
+			$revisionInfo = wfMessage( 'approvedrevs-warningoldid' )->text(). $revisionInfo;
+		}
+		$subtitleHTML = "<div class=\"mw-revision warningbox\">" . $revisionInfo . 
+		"<div id=\"mw-revision-nav\">" . $cdel .
+		wfMessage( 'approvedrevs-revision-nav' )->rawParams(
+			$prevdiff, $prevlink, $approvedlink, $approveddiff, $lnk, $curdiff, $nextlink, $nextdiff
+		)->escaped() . "</div></div>";
+		$outputPage->addSubtitle( $subtitleHTML );
 	}
 
 	/**
@@ -985,7 +992,7 @@ class ApprovedRevsHooks {
 		}
 
 		$approvedRevID = ApprovedRevs::getApprovedRevID( $title );
-
+		
 		if ( ApprovedRevs::userCanApprove( $user, $title ) && $oldRev->getID() == $approvedRevID ) {
 			// array key is class applied to <span> wrapping around link
 			// default if blank is mw-diff-tool; add that along with extension-specific class
@@ -1272,10 +1279,12 @@ class ApprovedRevsHooks {
 		global $egApprovedRevsBlankIfUnapproved;
 
 		// For now, we only set the header if "blank if unapproved"
-		// is set.
-		if ( !$egApprovedRevsBlankIfUnapproved ) {
-			return true;
-		}
+		// is set. 
+		// [Condition moved to the end to display the "Approve this 
+		// revision" link even if not blank -- TJ]
+		// if ( !$egApprovedRevsBlankIfUnapproved ) {
+		// 	return true;
+		// }
 
 		$title = $article->getTitle();
 		$context = $article->getContext();
@@ -1290,7 +1299,7 @@ class ApprovedRevsHooks {
 		// If the user isn't supposed to see these kinds of
 		// messages, exit.
 		if ( !ApprovedRevs::checkPermission( $user, $title, "viewlinktolatest" ) ) {
-			return false;
+			return true; // [true to allow function displayNotApprovedHeader -- TJ]
 		}
 
 		// If there's an approved revision for this page, and the
@@ -1307,7 +1316,7 @@ class ApprovedRevsHooks {
 		// Disable caching, so that if it's a specific ID being shown
 		// that happens to be the latest, it doesn't show a blank page.
 		$useParserCache = false;
-		$out->addHTML( '<span style="margin-left: 10.75px">' );
+		// $out->addHTML( '<span style="margin-left: 10.75px">' );
 
 		// If the user is looking at a specific revision, show an
 		// "approve this revision" message - otherwise, it means
@@ -1320,7 +1329,7 @@ class ApprovedRevsHooks {
 				// at all? Aren't the "approve this revision"
 				// links in the history page always good
 				// enough?
-				$out->addHTML( Xml::tags( 'span', [ 'id' => 'contentSub2' ],
+				$out->addHTML( Xml::tags( 'div', [ 'class' => 'approved-revs-approverev' ],
 					Xml::element( 'a',
 					[ 'href' => $title->getLocalUrl(
 						[
@@ -1331,21 +1340,22 @@ class ApprovedRevsHooks {
 					wfMessage( 'approvedrevs-approvethisrev' )->text()
 				) ) );
 			}
-		} else {
-			$out->addSubtitle(
-				htmlspecialchars( wfMessage( 'approvedrevs-blankpageshown' )->text() ) . '&#160;' .
-				Xml::element( 'a',
-					[ 'href' => $title->getLocalUrl(
-						[
-							'oldid' => $article->getRevIdFetched()
-						]
-					) ],
-					wfMessage( 'approvedrevs-viewlatestrev' )->text()
-				)
-			);
+			if ( $egApprovedRevsBlankIfUnapproved ) {
+				$out->addSubtitle(
+					htmlspecialchars( wfMessage( 'approvedrevs-blankpageshown' )->text() ) . '&#160;' .
+					Xml::element( 'a',
+						[ 'href' => $title->getLocalUrl(
+							[
+								'oldid' => $article->getRevIdFetched()
+							]
+						) ],
+						wfMessage( 'approvedrevs-viewlatestrev' )->text()
+					)
+				);
+			}
 		}
 
-		$out->addHTML( '</span>' );
+		// $out->addHTML( '</span>' );
 
 		return true;
 	}
@@ -1361,11 +1371,11 @@ class ApprovedRevsHooks {
 			return true;
 		}
 
-		// If we're looking at an old revision of the page, no need to
-		// display anything.
-		if ( $article->mOldId !== 0 ) {
-			return true;
-		}
+		// // If we're looking at an old revision of the page, no need to
+		// // display anything.
+		// if ( $article->mOldId !== 0 ) {
+		// 	return true;
+		// }
 
 		$title = $article->getTitle();
 		if ( !ApprovedRevs::pageIsApprovable( $title ) ) {
@@ -1375,7 +1385,11 @@ class ApprovedRevsHooks {
 			return true;
 		}
 
-		$text = wfMessage( 'approvedrevs-noapprovedrevision' )->text();
+		$text = Xml::element(
+			'div',
+			[ 'class' => 'noApprovedRevsMsg' ],
+			wfMessage( 'approvedrevs-noapprovedrevision' )->text()
+		);
 
 		$context = $article->getContext();
 		$out = $context->getOutput();
