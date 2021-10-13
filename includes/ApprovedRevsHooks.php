@@ -1149,6 +1149,9 @@ class ApprovedRevsHooks {
 		if ( ApprovedRevs::hasApprovedRevision( $title ) ) {
 			return true;
 		}
+		if ( $title->isProtected() ) {
+			return true;
+		}
 
 		$text = Xml::element(
 			'div',
